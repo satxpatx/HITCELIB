@@ -1,0 +1,65 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User profile information for students and admins.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique user ID from Firebase Auth." },
+        "name": { "type": "string", "description": "Full name of the user." },
+        "email": { "type": "string", "format": "email", "description": "Email address of the user." },
+        "rollNumber": { "type": "string", "description": "Student roll number or 'N/A' for admins." },
+        "role": { "type": "string", "enum": ["student", "admin"], "description": "User role." }
+      },
+      "required": ["uid", "name", "email", "rollNumber", "role"]
+    },
+    "Book": {
+      "title": "Book",
+      "description": "Library book information.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique book ID." },
+        "title": { "type": "string", "description": "Title of the book." },
+        "author": { "type": "string", "description": "Author of the book." },
+        "isbn": { "type": "string", "description": "ISBN or barcode of the book." },
+        "category": { "type": "string", "description": "Category of the book." },
+        "totalCopies": { "type": "integer", "description": "Total number of copies in the library." },
+        "availableCopies": { "type": "integer", "description": "Number of copies currently available for issue." }
+      },
+      "required": ["id", "title", "author", "isbn", "category", "totalCopies", "availableCopies"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Book issue and return transaction record.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique transaction ID." },
+        "bookId": { "type": "string", "description": "ID of the book issued." },
+        "bookTitle": { "type": "string", "description": "Title of the book issued." },
+        "userId": { "type": "string", "description": "ID of the student who issued the book." },
+        "userName": { "type": "string", "description": "Name of the student who issued the book." },
+        "rollNumber": { "type": "string", "description": "Roll number of the student." },
+        "issueDate": { "type": "string", "format": "date-time", "description": "Date and time the book was issued." },
+        "dueDate": { "type": "string", "format": "date-time", "description": "Date and time the book is due for return." },
+        "returnDate": { "type": "string", "format": "date-time", "description": "Date and time the book was returned." },
+        "status": { "type": "string", "enum": ["issued", "returned"], "description": "Current status of the transaction." },
+        "fine": { "type": "number", "description": "Fine amount paid or pending." }
+      },
+      "required": ["id", "bookId", "bookTitle", "userId", "userName", "rollNumber", "issueDate", "dueDate", "status", "fine"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of user profiles."
+    },
+    "/books/{bookId}": {
+      "schema": "Book",
+      "description": "Collection of library books."
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Collection of book transactions."
+    }
+  }
+}

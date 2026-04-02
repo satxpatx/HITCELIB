@@ -1,0 +1,167 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId (UID)
+    // Fields:
+    //   - uid: string (required) - Firebase Auth UID
+    //   - name: string (required, size 1-100) - User's full name
+    //   - email: string (required, email format) - User's email
+    //   - rollNumber: string (required, size 1-20) - Student roll number or 'N/A'
+    //   - role: string (required, enum: ['student', 'admin']) - User role
+    //
+    // Collection: books
+    // Document ID: bookId
+    // Fields:
+    //   - id: string (required) - Book ID
+    //   - title: string (required, size 1-200) - Book title
+    //   - author: string (required, size 1-100) - Book author
+    //   - isbn: string (required, size 1-20) - ISBN or barcode
+    //   - category: string (required, size 1-50) - Book category
+    //   - totalCopies: number (required, >= 0) - Total copies
+    //   - availableCopies: number (required, >= 0) - Available copies
+    //
+    // Collection: transactions
+    // Document ID: transactionId
+    // Fields:
+    //   - id: string (required) - Transaction ID
+    //   - bookId: string (required) - Book ID
+    //   - bookTitle: string (required) - Book title
+    //   - userId: string (required) - Student UID
+    //   - userName: string (required) - Student name
+    //   - rollNumber: string (required) - Student roll number
+    //   - issueDate: string (required, ISO 8601) - Issue date
+    //   - dueDate: string (required, ISO 8601) - Due date
+    //   - returnDate: string (optional, ISO 8601) - Return date
+    //   - status: string (required, enum: ['issued', 'returned']) - Transaction status
+    //   - fine: number (required, >= 0) - Fine amount
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        ((request.auth.token.email == "patrasatyabratahot@gmail.com" && request.auth.token.email_verified == true) ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string &&
+        dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasRequiredFields(['uid', 'name', 'email', 'rollNumber', 'role']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.name is string && data.name.size() > 0 &&
+             isValidEmail(data.email) &&
+             data.role in ['student', 'admin'];
+    }
+
+    function isValidBook(data) {
+      return hasRequiredFields(['id', 'title', 'author', 'isbn', 'category', 'totalCopies', 'availableCopies']) &&
+             hasOnlyAllowedFields(['id', 'title', 'author', 'isbn', 'category', 'totalCopies', 'availableCopies']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.author is string && data.author.size() > 0 && data.author.size() <= 100 &&
+             data.isbn is string && data.isbn.size() > 0 && data.isbn.size() <= 20 &&
+             data.category is string && data.category.size() > 0 && data.category.size() <= 50 &&
+             data.totalCopies is number && data.totalCopies >= 0 &&
+             data.availableCopies is number && data.availableCopies >= 0;
+    }
+
+    function isValidTransaction(data) {
+      return hasRequiredFields(['id', 'bookId', 'bookTitle', 'userId', 'userName', 'rollNumber', 'issueDate', 'dueDate', 'status', 'fine']) &&
+             hasOnlyAllowedFields(['id', 'bookId', 'bookTitle', 'userId', 'userName', 'rollNumber', 'issueDate', 'dueDate', 'returnDate', 'status', 'fine', 'lastNotifiedAt']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.bookId is string && data.bookId.size() > 0 &&
+             data.bookTitle is string && data.bookTitle.size() > 0 &&
+             data.userId is string && data.userId.size() > 0 &&
+             data.userName is string && data.userName.size() > 0 &&
+             data.rollNumber is string && data.rollNumber.size() > 0 &&
+             isValidDateString(data.issueDate) &&
+             isValidDateString(data.dueDate) &&
+             (!('returnDate' in data) || isValidDateString(data.returnDate)) &&
+             (!('lastNotifiedAt' in data) || isValidDateString(data.lastNotifiedAt)) &&
+             data.status in ['issued', 'returned'] &&
+             data.fine is number && data.fine >= 0;
+    }
+
+    function isValidNotification(data) {
+      return hasRequiredFields(['userId', 'title', 'message', 'createdAt', 'read', 'type']) &&
+             hasOnlyAllowedFields(['userId', 'title', 'message', 'createdAt', 'read', 'type']) &&
+             data.userId is string && data.userId.size() > 0 &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.message is string && data.message.size() > 0 && data.message.size() <= 1000 &&
+             isValidDateString(data.createdAt) &&
+             data.read is bool &&
+             data.type in ['overdue', 'system'];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (request.auth.uid == userId || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (request.auth.uid == userId || isAdmin());
+    }
+
+    match /books/{bookId} {
+      allow read: if true; // Publicly readable for browsing
+      allow create, update, delete: if isAdmin() && isValidBook(request.resource.data);
+    }
+
+    match /transactions/{transactionId} {
+      allow read: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
+      allow create: if isAdmin() && isValidTransaction(request.resource.data);
+      allow update: if isAdmin() && isValidTransaction(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && isOwner(resource.data.userId);
+      allow create: if isAdmin() && isValidNotification(request.resource.data);
+      allow update: if isAuthenticated() && isOwner(resource.data.userId) && isValidNotification(request.resource.data) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

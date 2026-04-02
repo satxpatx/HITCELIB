@@ -1,0 +1,5 @@
+{
+  "name": "HIT Civil Library",
+  "description": "Library Management System for the Civil Engineering Department of Haldia Institute of Technology.",
+  "requestFramePermissions": ["camera"]
+}
